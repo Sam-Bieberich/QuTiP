@@ -9,11 +9,47 @@ import itertools
 import warnings
 
 warnings.filterwarnings('ignore', module='qutip') #remove the random qutip warnings
+scq.settings.T1_DEFAULT_WARNING=False
+
+c_ops = None  # Global placeholder
+fluxonium = scq.Fluxonium(EJ=8.9, EC=2.5, EL=0.5, flux=0.48, cutoff=110)  # Already done
+
+def init_c_ops():
+    gamma_ij = {}
+    for j in range(1, levels):
+        for i in range(j):
+            t1 = fluxonium.t1_capacitive(j, i, Q_cap=1e5)
+            if t1 is not None and t1 > 0:
+                rate = 1.0 / t1
+                gamma_ij[(i, j)] = rate
+                gamma_ij[(j, i)] = rate
+
+    c_ops_local = []
+    for (i, j), gamma in gamma_ij.items():
+        cop = (np.sqrt(gamma)) * qt.basis(levels, i) * qt.basis(levels, j).dag()
+        c_ops_local.append(cop)
+    return c_ops_local
+
 
 def evolve(omega_d, t_g):
+    global c_ops
+    if c_ops is None:
+        c_ops = init_c_ops()
+    fluxonium = scq.Fluxonium(EJ = 8.9,
+                               EC = 2.5,
+                               EL = 0.5,
+                               flux = 0.48,
+                               cutoff = 110)
+    levels = 6
+    evals, evecs = fluxonium.eigensys(evals_count=levels)
+    n_op_energy_basis = qt.Qobj(fluxonium.process_op(fluxonium.n_operator(), energy_esys=(evals, evecs)))
+    H0 = qt.Qobj(np.diag(evals))
+    A = 0.1
+    drive_op = n_op_energy_basis
+    H = [H0, [A * drive_op, 'cos(wd * t)']]
     args = {'wd': omega_d}
     options = qt.Options(nsteps=10000000, store_states=True, atol=1e-12, rtol=1e-11)
-    propagator = qt.propagator(H, t_g, args=args, options=options)
+    propagator = qt.propagator(H, t_g, args=args, options=options, c_ops=c_ops)
     propagator_kraus = qt.to_kraus(propagator)
     propagator_2x2 = [qt.Qobj(k.full()[:2, :2]) for k in propagator_kraus]
     p_2x2_super = qt.kraus_to_super(propagator_2x2)
@@ -133,6 +169,24 @@ if __name__ == "__main__":
     warnings.filterwarnings('ignore', category=UserWarning)
     warnings.filterwarnings('ignore', category=DeprecationWarning)
 
+    #Noise
+    gamma_ij = {}
+    for j in range(1, levels):
+        for i in range(j):
+            t1 = fluxonium.t1_capacitive(j, i, Q_cap=1e5)
+            if t1 is not None and t1 > 0:
+                rate = 1.0 / t1
+                gamma_ij[(i, j)] = rate
+                gamma_ij[(j, i)] = rate  
+
+    c_ops = []
+    for (i, j), gamma in gamma_ij.items():
+        # |i><j| operator
+        cop = (np.sqrt(gamma)) * qt.basis(levels, i) * qt.basis(levels, j).dag()
+        c_ops.append(cop)
+
+
+    #arrays
     omega_d_array = np.linspace(omega_d - 0.1, omega_d + 0.1, 20)
     peak_time_noise = 559.5559555955596 #defined from earlier runs
     t_g_array = np.linspace(0.8 * peak_time_noise, 1.2 * peak_time_noise, 20)
