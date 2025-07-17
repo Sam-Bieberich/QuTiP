@@ -34,10 +34,12 @@ if c_ops is None:
 
 evals, evecs = fluxonium.eigensys(evals_count=levels)
 n_op_energy_basis = qt.Qobj(fluxonium.process_op(fluxonium.n_operator(), energy_esys=(evals, evecs)))
-H0 = qt.Qobj(np.diag(evals))
-A = 0.1
+H0 = qt.Qobj(np.diag(evals)) * 2 * np.pi
+A = 0.4 * 2 * np.pi
 drive_op = n_op_energy_basis
 H = [H0, [A * drive_op, 'cos(wd * t)']]
+
+
 
 
 def evolve(omega_d, t_g):
@@ -105,7 +107,7 @@ def parallel_map_qutip(task, values, task_args=tuple(), task_kwargs={}, **kwargs
     if "num_cpus" in kwargs:
         kw["num_cpus"] = kwargs["num_cpus"]
     
-    kw["num_cpus"] = 7
+    kw["num_cpus"] = 50
 
     nfinished = [0]
 
@@ -169,14 +171,16 @@ def param_map(f, parameters, map_fun=map, dtype=object):
 ########################################### Running ###########################################
 
 evals, _ = fluxonium.eigensys(evals_count=levels)
-omega_d_base = evals[1] - evals[0]
+omega_d_base = (evals[1] - evals[0]) * 2 * np.pi
 
-dimensions_omega = 8
+print("omega d is", omega_d_base)
+
+dimensions_omega = 3
 dimensions_time = 6
 
-omega_d_array = np.linspace(omega_d_base - 0.001, omega_d_base + 0.001, dimensions_omega)
-peak_time_noise = 559.5559555955596  # previously determined
-t_g_array = np.linspace(0.99 * peak_time_noise, 1.01 * peak_time_noise, dimensions_time)
+omega_d_array = np.linspace(omega_d_base - 0.01, omega_d_base + 0.01, dimensions_omega)
+
+t_g_array = np.linspace(24.2, 24.6, dimensions_time)
 # param_pairs = list(itertools.product(omega_d_array, t_g_array))
 
 # print(f"Total simulations to run: {len(param_pairs)}")
@@ -197,6 +201,8 @@ except ImportError:
 
 def _default_kwargs():
     return {"num_cpus": os.cpu_count() or 1}
+
+
 
 #single process
 # fidelity_results = param_map(evolve, [omega_d_array, t_g_array])
