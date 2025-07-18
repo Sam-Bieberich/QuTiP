@@ -8,3 +8,5 @@ atol = e-12, rtol = e-11
 
 Qcap 1e7
 atol = e-14, rtol = e-13
+
+For reproducible code and further details, see the [fluxonium_fidelity GitHub repository](https://github.com/Sam-Bieberich/fluxonium_fidelity).
